@@ -7,7 +7,7 @@ import plotly.express as px
 def process_csv_files(input_pattern='data/daily_sales_data_*.csv', output_file='formatted_output.csv'):
     """
     Reads all CSV files matching the given pattern, processes the data, and writes the output to a CSV.
-    The processing involves:
+    Processing includes:
       - Keeping only rows where the product is "pink morsel"
       - Removing the '$' from the price and converting it to float
       - Creating a 'Sales' field by multiplying price and quantity
@@ -49,6 +49,10 @@ process_csv_files(input_pattern='data/daily_sales_data_*.csv', output_file='form
 # Load the processed data for visualization
 df = pd.read_csv('formatted_output.csv')
 
+# Convert 'Date' column to datetime and sort by date
+df['Date'] = pd.to_datetime(df['Date'])
+df = df.sort_values('Date')
+
 # Prepare the list of unique regions for the dropdown filter
 regions = df['Region'].unique().tolist()
 regions_options = [{'label': region, 'value': region} for region in regions]
@@ -58,24 +62,24 @@ regions_options.insert(0, {'label': 'All', 'value': 'All'})
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    html.H1("Sales Dashboard"),
+    html.H1("Sales Data Visualiser", style={'textAlign': 'center'}),
     html.Label("Select Region:"),
     dcc.Dropdown(
         id='region-dropdown',
         options=regions_options,
         value='All'
     ),
-    dcc.Graph(id='sales-graph')
+    dcc.Graph(id='sales-line-chart')
 ])
 
 @app.callback(
-    Output('sales-graph', 'figure'),
+    Output('sales-line-chart', 'figure'),
     Input('region-dropdown', 'value')
 )
 def update_graph(selected_region):
     """
-    Callback function that filters the data by the selected region (if any),
-    aggregates sales by date, and returns a bar chart.
+    Callback that filters the data by the selected region (if any),
+    aggregates sales by date, and returns a line chart with a pink-colored line.
     """
     if selected_region == 'All':
         filtered_df = df.copy()
@@ -85,9 +89,15 @@ def update_graph(selected_region):
     # Aggregate total sales by date
     agg_df = filtered_df.groupby('Date', as_index=False)['Sales'].sum()
     
-    # Create a bar chart using Plotly Express
-    fig = px.bar(agg_df, x='Date', y='Sales',
-                 title=f"Total Sales over Time for {selected_region}")
+    # Create a line chart with the line colored pink
+    fig = px.line(
+        agg_df, 
+        x='Date', 
+        y='Sales',
+        title=f"Total Sales over Time for {selected_region}",
+        labels={'Date': 'Date', 'Sales': 'Total Sales ($)'},
+        color_discrete_sequence=['pink']  # sets the line color to pink
+    )
     return fig
 
 if __name__ == '__main__':
