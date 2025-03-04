@@ -13,90 +13,127 @@ def process_csv_files(input_pattern='data/daily_sales_data_*.csv', output_file='
       - Creating a 'Sales' field by multiplying price and quantity
       - Keeping only the Sales, Date, and Region fields in the output file
     """
-    # Get all CSV file paths matching the pattern
     csv_files = glob.glob(input_pattern)
-    
-    # Read and collect data from all CSV files
     list_dfs = []
     for file in csv_files:
         df = pd.read_csv(file)
         list_dfs.append(df)
     
-    # Combine all data into one DataFrame
     all_data = pd.concat(list_dfs, ignore_index=True)
-    
-    # Filter rows: keep only rows where the product is "pink morsel" (ignoring case)
     filtered = all_data[all_data['product'].str.lower() == 'pink morsel']
-    
-    # Clean the 'price' field: remove the "$" and convert to float
     filtered['price'] = filtered['price'].replace({'\$':''}, regex=True).astype(float)
-    
-    # Create the 'sales' column by multiplying price and quantity
     filtered['sales'] = filtered['price'] * filtered['quantity']
-    
-    # Create the final output DataFrame with only Sales, Date, and Region columns
     output_df = filtered[['sales', 'date', 'region']].rename(
         columns={'sales': 'Sales', 'date': 'Date', 'region': 'Region'}
     )
-    
-    # Write the processed data to the output CSV file
     output_df.to_csv(output_file, index=False)
     print("Processed data saved to", output_file)
 
-# Process CSV files using the new file location
+# Process CSV files
 process_csv_files(input_pattern='data/daily_sales_data_*.csv', output_file='formatted_output.csv')
 
-# Load the processed data for visualization
+# Load and prepare the processed data
 df = pd.read_csv('formatted_output.csv')
-
-# Convert 'Date' column to datetime and sort by date
 df['Date'] = pd.to_datetime(df['Date'])
 df = df.sort_values('Date')
 
-# Prepare the list of unique regions for the dropdown filter
-regions = df['Region'].unique().tolist()
-regions_options = [{'label': region, 'value': region} for region in regions]
-regions_options.insert(0, {'label': 'All', 'value': 'All'})
+# Define inline CSS styles with a pink-dominated palette
+container_style = {
+    'fontFamily': 'Serif',
+    'backgroundColor': '#FFE4E6',  # light pink background
+    'padding': '20px'
+}
+
+header_style = {
+    'color': '#F07D82',  # main pink color
+    'textAlign': 'center',
+    'fontSize': '3em',
+    'marginBottom': '20px'
+}
+
+label_style = {
+    'color': '#C94F6D',  # darker pink for labels
+    'fontSize': '1.5em',
+    'textAlign': 'center',
+    'marginBottom': '10px'
+}
+
+radio_container_style = {
+    'textAlign': 'center',
+    'marginBottom': '20px'
+}
+
+radio_item_style = {
+    'display': 'inline-block',
+    'margin-right': '20px',
+    'fontSize': '1.2em',
+    'color': '#C94F6D'  # darker pink tone for radio items
+}
+
+graph_style = {
+    'border': '2px solid #F7A1A8',  # pink border
+    'boxShadow': '0px 4px 6px #C94F6D',  # darker pink shadow
+    'margin': '0 auto',
+    'maxWidth': '90%'
+}
 
 # Set up the Dash application
 app = dash.Dash(__name__)
 
-app.layout = html.Div([
-    html.H1("Sales Data Visualiser", style={'textAlign': 'center'}),
-    html.Label("Select Region:"),
-    dcc.Dropdown(
-        id='region-dropdown',
-        options=regions_options,
-        value='All'
-    ),
-    dcc.Graph(id='sales-line-chart')
+app.layout = html.Div(style=container_style, children=[
+    html.H1("Sales Data Visualiser", style=header_style),
+    
+    html.Div(style=radio_container_style, children=[
+        html.Label("Filter by Region:", style=label_style),
+        dcc.RadioItems(
+            id='region-radio',
+            options=[
+                {'label': 'north', 'value': 'north'},
+                {'label': 'east', 'value': 'east'},
+                {'label': 'south', 'value': 'south'},
+                {'label': 'west', 'value': 'west'},
+                {'label': 'all', 'value': 'all'}
+            ],
+            value='all',
+            labelStyle=radio_item_style
+        )
+    ]),
+    
+    dcc.Graph(id='sales-line-chart', style=graph_style)
 ])
 
 @app.callback(
     Output('sales-line-chart', 'figure'),
-    Input('region-dropdown', 'value')
+    Input('region-radio', 'value')
 )
 def update_graph(selected_region):
     """
-    Callback that filters the data by the selected region (if any),
-    aggregates sales by date, and returns a line chart with a pink-colored line.
+    Callback that filters data by the selected region and creates a pink-colored line chart
+    showing total sales over time.
     """
-    if selected_region == 'All':
+    if selected_region == 'all':
         filtered_df = df.copy()
+        chart_title = "Total Sales Over Time (All Regions)"
     else:
         filtered_df = df[df['Region'] == selected_region]
+        chart_title = f"Total Sales Over Time ({selected_region.capitalize()})"
     
-    # Aggregate total sales by date
     agg_df = filtered_df.groupby('Date', as_index=False)['Sales'].sum()
     
-    # Create a line chart with the line colored pink
     fig = px.line(
-        agg_df, 
-        x='Date', 
+        agg_df,
+        x='Date',
         y='Sales',
-        title=f"Total Sales over Time for {selected_region}",
+        title=chart_title,
         labels={'Date': 'Date', 'Sales': 'Total Sales ($)'},
-        color_discrete_sequence=['pink']  # sets the line color to pink
+        color_discrete_sequence=['pink']  # pink-colored line
+    )
+    fig.update_layout(
+        font_family="Serif",
+        title_font_color="#F07D82",
+        title_font_size=24,
+        xaxis_title_font_color="#C94F6D",
+        yaxis_title_font_color="#C94F6D"
     )
     return fig
 
